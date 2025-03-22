@@ -1,8 +1,9 @@
+// src/components/RungeKutta.tsx
+
 import React, { useState } from 'react';
 import { rungeKuttaMethod, Point } from '../utils/mathUtils';
 import { Line } from 'react-chartjs-2';
 import { Chart, registerables } from 'chart.js';
-
 
 Chart.register(...registerables);
 
@@ -19,8 +20,6 @@ const RungeKutta: React.FC = () => {
   // Función de la solución exacta: y(x) = (x+1)^2
   const expectedSolution = (x: number): number => (x + 1) ** 2;
 
- 
-
   // Calcula los puntos usando el método de Runge-Kutta (4º orden)
   const handleCalculate = () => {
     const result = rungeKuttaMethod(f, x0, y0, xEnd, h);
@@ -33,7 +32,7 @@ const RungeKutta: React.FC = () => {
   const exact_vals = points.map(p => expectedSolution(p.x));
   const error_vals = points.map(p => {
     const exact = expectedSolution(p.x);
-    return exact !== 0 ? 100 * Math.abs(p.y - exact) / exact : 0;
+    return exact !== 0 ? (100 * Math.abs(p.y - exact)) / exact : 0;
   });
 
   // Configuración de la gráfica de solución (aproximación vs. exacta)
@@ -70,80 +69,88 @@ const RungeKutta: React.FC = () => {
   };
 
   return (
-    <div style={{ padding: '1rem' }}>
-      <h2>Método de Runge-Kutta (4º orden) con Análisis de Error</h2>
-      <div style={{ marginBottom: '1rem' }}>
-        <label>
-          x0:
+    <div className="p-4">
+      <h2 className="text-2xl font-bold mb-4">Método de Runge-Kutta (4º orden) con Análisis de Error</h2>
+      
+      <div className="mb-4 flex flex-wrap gap-4">
+        <div>
+          <label className="block mb-1">x0:</label>
           <input
             type="number"
             value={x0}
             onChange={(e) => setX0(parseFloat(e.target.value))}
-            style={{ margin: '0 1rem' }}
+            className="border rounded px-3 py-2"
           />
-        </label>
-        <label>
-          y0:
+        </div>
+        <div>
+          <label className="block mb-1">y0:</label>
           <input
             type="number"
             value={y0}
             onChange={(e) => setY0(parseFloat(e.target.value))}
-            style={{ margin: '0 1rem' }}
+            className="border rounded px-3 py-2"
           />
-        </label>
-        <label>
-          xEnd:
+        </div>
+        <div>
+          <label className="block mb-1">xEnd:</label>
           <input
             type="number"
             value={xEnd}
             onChange={(e) => setXEnd(parseFloat(e.target.value))}
-            style={{ margin: '0 1rem' }}
+            className="border rounded px-3 py-2"
           />
-        </label>
-        <label>
-          h:
+        </div>
+        <div>
+          <label className="block mb-1">h:</label>
           <input
             type="number"
             value={h}
             onChange={(e) => setH(parseFloat(e.target.value))}
-            style={{ margin: '0 1rem' }}
+            className="border rounded px-3 py-2"
           />
-        </label>
-        <button onClick={handleCalculate}>Calcular</button>
+        </div>
+        <button
+          onClick={handleCalculate}
+          className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded"
+        >
+          Calcular
+        </button>
       </div>
 
       {points.length > 0 && (
         <>
           {/* Gráfica de la solución */}
-          <div style={{ maxWidth: '600px', marginBottom: '2rem' }}>
+          <div className="max-w-lg mx-auto mb-8">
             <Line data={solutionChartData} />
           </div>
           {/* Gráfica del error porcentual */}
-          <div style={{ maxWidth: '600px', marginBottom: '2rem' }}>
+          <div className="max-w-lg mx-auto mb-8">
             <Line data={errorChartData} />
           </div>
           {/* Tabla de resultados */}
-          <h3>Resultados</h3>
-          <table border={1} cellPadding={5} style={{ borderCollapse: 'collapse', width: '100%' }}>
-            <thead>
-              <tr>
-                <th>x</th>
-                <th>y_aprox</th>
-                <th>y_exact</th>
-                <th>Error (%)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {points.map((p, index) => (
-                <tr key={index}>
-                  <td>{p.x.toFixed(2)}</td>
-                  <td>{p.y.toFixed(6)}</td>
-                  <td>{exact_vals[index].toFixed(6)}</td>
-                  <td>{error_vals[index].toFixed(2)}</td>
+          <h3 className="text-xl font-semibold mb-2">Resultados</h3>
+          <div className="overflow-x-auto">
+            <table className="min-w-full border-collapse border border-gray-300">
+              <thead>
+                <tr className="bg-gray-200">
+                  <th className="border px-4 py-2">x</th>
+                  <th className="border px-4 py-2">y_aprox</th>
+                  <th className="border px-4 py-2">y_exact</th>
+                  <th className="border px-4 py-2">Error (%)</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {points.map((p, index) => (
+                  <tr key={index} className="text-center">
+                    <td className="border px-4 py-2">{p.x.toFixed(2)}</td>
+                    <td className="border px-4 py-2">{p.y.toFixed(6)}</td>
+                    <td className="border px-4 py-2">{exact_vals[index].toFixed(6)}</td>
+                    <td className="border px-4 py-2">{error_vals[index].toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </>
       )}
     </div>
