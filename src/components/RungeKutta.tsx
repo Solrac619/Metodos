@@ -69,17 +69,17 @@ const RungeKutta: React.FC = () => {
   };
 
   return (
-    <div className="p-4">
-      <h2 className="text-2xl font-bold mb-4">Método de Runge-Kutta (4º orden) con Análisis de Error</h2>
+    <div className="p-4 text-center justify-center flex flex-col">
+      <h2 className="text-2xl font-bold mb-4">Método de Runge-Kutta (4º orden) con Análisis de Error.</h2>
       
-      <div className="mb-4 flex flex-wrap gap-4">
+      <div className="mb-4 flex justify-center flex-wrap gap-4">
         <div>
           <label className="block mb-1">x0:</label>
           <input
             type="number"
             value={x0}
             onChange={(e) => setX0(parseFloat(e.target.value))}
-            className="border rounded px-3 py-2"
+            className="border rounded px-3 py-2 border-gray-400"
           />
         </div>
         <div>
@@ -88,7 +88,7 @@ const RungeKutta: React.FC = () => {
             type="number"
             value={y0}
             onChange={(e) => setY0(parseFloat(e.target.value))}
-            className="border rounded px-3 py-2"
+            className="border rounded px-3 py-2 border-gray-400"
           />
         </div>
         <div>
@@ -97,7 +97,7 @@ const RungeKutta: React.FC = () => {
             type="number"
             value={xEnd}
             onChange={(e) => setXEnd(parseFloat(e.target.value))}
-            className="border rounded px-3 py-2"
+            className="border rounded px-3 py-2 border-gray-400"
           />
         </div>
         <div>
@@ -106,12 +106,12 @@ const RungeKutta: React.FC = () => {
             type="number"
             value={h}
             onChange={(e) => setH(parseFloat(e.target.value))}
-            className="border rounded px-3 py-2"
+            className="border rounded px-3 py-2 border-gray-400"
           />
         </div>
         <button
           onClick={handleCalculate}
-          className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded"
+          className="bg-green-500 hover:bg-green-700 w-[6vw] h-[6vh] my-[3.5vh] text-white font-semibold py-2 px-4 rounded"
         >
           Calcular
         </button>
