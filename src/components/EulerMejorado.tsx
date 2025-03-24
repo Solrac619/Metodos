@@ -67,15 +67,15 @@ const EulerMejorado: React.FC = () => {
 
   return (
     <div className="p-4">
-      <h2 className="text-2xl font-bold mb-4">Método de Euler Mejorado (Heun) con Análisis de Error</h2>
-      <div className="mb-4 flex flex-wrap gap-4">
+      <h2 className="text-2xl font-bold mb-4 text-center">Método de Euler Mejorado (Heun) con Análisis de Error.</h2>
+      <div className="mb-4 justify-center flex flex-wrap gap-4">
         <div>
           <label className="block mb-1">x0:</label>
           <input
             type="number"
             value={x0}
             onChange={(e) => setX0(parseFloat(e.target.value))}
-            className="border rounded px-3 py-2"
+            className="border rounded px-3 py-2 border-gray-400"
           />
         </div>
         <div>
@@ -84,7 +84,7 @@ const EulerMejorado: React.FC = () => {
             type="number"
             value={y0}
             onChange={(e) => setY0(parseFloat(e.target.value))}
-            className="border rounded px-3 py-2"
+            className="border rounded px-3 py-2 border-gray-400"
           />
         </div>
         <div>
@@ -93,7 +93,7 @@ const EulerMejorado: React.FC = () => {
             type="number"
             value={xEnd}
             onChange={(e) => setXEnd(parseFloat(e.target.value))}
-            className="border rounded px-3 py-2"
+            className="border rounded px-3 py-2 border-gray-400"
           />
         </div>
         <div>
@@ -102,7 +102,7 @@ const EulerMejorado: React.FC = () => {
             type="number"
             value={h}
             onChange={(e) => setH(parseFloat(e.target.value))}
-            className="border rounded px-3 py-2"
+            className="border rounded px-3 py-2 border-gray-400"
           />
         </div>
         <button
