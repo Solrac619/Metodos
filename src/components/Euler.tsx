@@ -1,219 +1,259 @@
-// src/components/Euler.tsx
+// src/components/EcuacionSolverMethods.tsx
 
-import React, { useState } from 'react';
-import { Line } from 'react-chartjs-2';
-import { Chart, registerables } from 'chart.js';
-import { eulerMethod, Point } from '../utils/mathUtils'; // Usamos el método Euler definido en mathUtils
+import React, { useState } from "react";
+import axios from "axios";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
+import {
+  eulerMethod,
+  improvedEulerMethod,
+  rungeKuttaMethod,
+  Point,
+} from "../utils/mathUtils";
 
-Chart.register(...registerables);
+// Parámetros fijos (estos deben coincidir con los usados en el backend)
+const x0 = 0;
+const y0 = 1;
+const xEnd = 5;
+const h = 0.1;
 
-const Euler: React.FC = () => {
-  // Nota: Ahora ya no hardcodeamos f y expectedSolution, pues la solución exacta se obtiene de la API.
-  // Sin embargo, para comparar, aún calcularemos la aproximación de Euler localmente usando una función f.
-  // Para este ejemplo, si la ecuación es "y' - y + x*x - 1 = 0", interpretamos que f(x,y)= y - x*x + 1.
-  // Si cambias la ecuación, deberás actualizar esta función o implementar un parser (por ejemplo, mathjs).
-  const f = (x: number, y: number): number => y - x * x + 1;
+// Para la ecuación "y' - y = 0" se deduce que y' = y, es decir, f(t,y)= y.
+const f = (t: number, y: number): number => y;
 
-  // Método de Euler (importado de mathUtils)
-  // Ya está implementado en mathUtils.ts
+const errorCalc = (approx: number, exact: number): number =>
+  exact !== 0 ? (Math.abs(approx - exact) / exact) * 100 : 0;
 
-  // Estados para parámetros y resultados
-  const [x0, setX0] = useState<number>(0);
-  const [y0, setY0] = useState<number>(1);
-  const [xEnd, setXEnd] = useState<number>(5);
-  const [h, setH] = useState<number>(0.1);
+const EcuacionSolverMethods: React.FC = () => {
+  // El usuario solo ingresa la ecuación
   const [equation, setEquation] = useState<string>("y' - y = 0");
-  const [solution, setSolution] = useState<string>('');
-  const [methodUsed, setMethodUsed] = useState<string>('');
-  const [apiError, setApiError] = useState<string>('');
+  const [solution, setSolution] = useState<string>("");
+  const [methodUsed, setMethodUsed] = useState<string>("");
+  const [apiError, setApiError] = useState<string>("");
   const [exactPoints, setExactPoints] = useState<Point[]>([]);
-  const [eulerPoints, setEulerPoints] = useState<Point[]>([]);
 
-  // Función que invoca la API para resolver la ecuación y obtener los puntos de la solución exacta
-  const handleCalculate = async () => {
-    const conditions = { 
-      y0: y0.toString()
-    };
+  // Estados para las aproximaciones locales (calculadas con mathUtils)
+  const [ptsEuler, setPtsEuler] = useState<Point[]>([]);
+  const [ptsImproved, setPtsImproved] = useState<Point[]>([]);
+  const [ptsRK, setPtsRK] = useState<Point[]>([]);
 
+  // Al hacer clic, se envía la ecuación al backend. El backend usa los parámetros por defecto.
+  const handleSolve = async () => {
+    setApiError("");
     try {
-      const response = await fetch("http://127.0.0.1:5000/solve-ode", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          equation: equation,
-          conditions: conditions,
-          x0: x0,
-          xEnd: xEnd,
-          h: h
-        })
+      const response = await axios.post("http://127.0.0.1:5000/solve-ode", {
+        equation,
       });
-
-      if (!response.ok) {
-        throw new Error("Error en la llamada a la API");
-      }
-
-      const data = await response.json();
+      const data = response.data;
       setSolution(data.solution);
       setMethodUsed(data.method);
-      setApiError('');
-      setExactPoints(data.points); // Guardamos los puntos de la solución exacta
+      // Se espera que data.points tenga la forma { x: [...], y: [...] }
+      const pts: Point[] = data.points && data.points.x
+        ? data.points.x.map((x: number, idx: number) => ({
+            x,
+            y: data.points.y[idx],
+          }))
+        : [];
+      setExactPoints(pts);
     } catch (err: any) {
-      setApiError(err.message);
-      setSolution('');
+      setApiError(err.response?.data?.error || "Error desconocido");
+      setSolution("");
       setExactPoints([]);
     }
-
-    // Calcular puntos usando el método de Euler localmente
-    const ptsEuler = eulerMethod(f, x0, y0, xEnd, h);
-    setEulerPoints(ptsEuler);
+    // Calcular las aproximaciones locales con mathUtils usando la función f y parámetros fijos
+    setPtsEuler(eulerMethod(f, x0, y0, xEnd, h));
+    setPtsImproved(improvedEulerMethod(f, x0, y0, xEnd, h));
+    setPtsRK(rungeKuttaMethod(f, x0, y0, xEnd, h));
   };
 
   // Preparar datos para las gráficas
-  const x_vals = exactPoints.map(p => p.x);
-  const exact_y_vals = exactPoints.map(p => p.y);
-  const euler_y_vals = eulerPoints.map(p => p.y);
-  const error_vals = exactPoints.map((p, idx) => {
-    const exact = p.y;
-    const approx = euler_y_vals[idx] || 0;
-    return exact !== 0 ? (Math.abs(approx - exact) / exact) * 100 : 0;
-  });
+  const x_vals = exactPoints.map((p) => p.x);
+  const exact_y_vals = exactPoints.map((p) => p.y);
+  const euler_y_vals = ptsEuler.map((p) => p.y);
+  const improved_y_vals = ptsImproved.map((p) => p.y);
+  const rk_y_vals = ptsRK.map((p) => p.y);
 
-  const solutionChartData = {
-    labels: x_vals.map(x => x.toFixed(2)),
+  // Calcular errores porcentuales para cada método (basados en la solución exacta)
+  const errorEuler = exactPoints.map((p, idx) =>
+    errorCalc(ptsEuler[idx]?.y || 0, p.y)
+  );
+  const errorImproved = exactPoints.map((p, idx) =>
+    errorCalc(ptsImproved[idx]?.y || 0, p.y)
+  );
+  const errorRK = exactPoints.map((p, idx) =>
+    errorCalc(ptsRK[idx]?.y || 0, p.y)
+  );
+
+  // Datos para la gráfica de la solución exacta (devuelta por la API)
+  const exactChartData = {
+    labels: x_vals.map((x) => x.toFixed(2)),
     datasets: [
       {
-        label: 'Solución Exacta (API)',
+        label: "Solución Exacta (API)",
         data: exact_y_vals,
         fill: false,
-        borderColor: 'rgb(54, 162, 235)',
-        borderDash: [5, 5]
+        borderColor: "red",
+        borderDash: [5, 5],
       },
-      {
-        label: 'Solución Numérica (Euler)',
-        data: euler_y_vals,
-        fill: false,
-        borderColor: 'rgb(75, 192, 192)'
-      }
-    ]
+    ],
   };
 
-  const errorChartData = {
-    labels: x_vals.map(x => x.toFixed(2)),
+  // Datos para las gráficas de aproximaciones
+  const eulerChartData = {
+    labels: ptsEuler.map((p) => p.x.toFixed(2)),
     datasets: [
       {
-        label: 'Error Porcentual (%)',
-        data: error_vals,
+        label: "Euler",
+        data: euler_y_vals,
         fill: false,
-        borderColor: 'magenta'
-      }
-    ]
+        borderColor: "blue",
+      },
+    ],
+  };
+
+  const improvedChartData = {
+    labels: ptsImproved.map((p) => p.x.toFixed(2)),
+    datasets: [
+      {
+        label: "Euler Mejorado",
+        data: improved_y_vals,
+        fill: false,
+        borderColor: "green",
+      },
+    ],
+  };
+
+  const rkChartData = {
+    labels: ptsRK.map((p) => p.x.toFixed(2)),
+    datasets: [
+      {
+        label: "Runge-Kutta",
+        data: rk_y_vals,
+        fill: false,
+        borderColor: "orange",
+      },
+    ],
   };
 
   return (
     <div className="p-4">
       <h2 className="text-2xl font-bold mb-4 text-center">
-        Método de Euler (Integrado con API y Gráficas)
+        Solver de Ecuaciones Diferenciales
       </h2>
-      <div className="mb-4 justify-center flex flex-wrap gap-4">
-        <div>
-          <label className="block mb-1">Ecuación:</label>
-          <input
-            type="text"
-            value={equation}
-            onChange={(e) => setEquation(e.target.value)}
-            className="border rounded px-3 py-2 border-gray-400"
-          />
-        </div>
-        <div>
-          <label className="block mb-1">x0:</label>
-          <input
-            type="number"
-            value={x0}
-            onChange={(e) => setX0(parseFloat(e.target.value))}
-            className="border rounded px-3 py-2 border-gray-400"
-          />
-        </div>
-        <div>
-          <label className="block mb-1">y0:</label>
-          <input
-            type="number"
-            value={y0}
-            onChange={(e) => setY0(parseFloat(e.target.value))}
-            className="border rounded px-3 py-2 border-gray-400"
-          />
-        </div>
-        <div>
-          <label className="block mb-1">xEnd:</label>
-          <input
-            type="number"
-            value={xEnd}
-            onChange={(e) => setXEnd(parseFloat(e.target.value))}
-            className="border rounded px-3 py-2 border-gray-400"
-          />
-        </div>
-        <div>
-          <label className="block mb-1">h:</label>
-          <input
-            type="number"
-            value={h}
-            onChange={(e) => setH(parseFloat(e.target.value))}
-            className="border rounded px-3 py-2 border-gray-400"
-          />
-        </div>
+      <div className="mb-4 flex justify-center">
+        <input
+          type="text"
+          value={equation}
+          onChange={(e) => setEquation(e.target.value)}
+          placeholder="Ingresa la ecuación (ej: y' - y = 0)"
+          className="border p-2 w-full max-w-md mb-4"
+        />
         <button
-          onClick={handleCalculate}
-          className="bg-yellow-500 hover:bg-yellow-700 text-white font-semibold py-2 px-4 rounded"
+          onClick={handleSolve}
+          className="ml-4 bg-yellow-500 hover:bg-yellow-700 text-white font-semibold py-2 px-4 rounded"
         >
           Calcular
         </button>
       </div>
-
-      {apiError && (
-        <div className="text-red-600 mb-4">
-          {apiError}
-        </div>
-      )}
-
+      {apiError && <p className="text-red-500 mb-4">{apiError}</p>}
       {solution && (
-        <div className="mt-4">
-          <h3 className="text-xl font-semibold mb-2">Solución Exacta (API)</h3>
+        <div className="mb-4">
+          <h3 className="font-semibold">Solución Exacta (API):</h3>
           <pre className="bg-gray-100 p-4 rounded whitespace-pre-wrap">
             {solution}
           </pre>
           <p>Método utilizado: {methodUsed}</p>
         </div>
       )}
-
-      {exactPoints.length > 0 && eulerPoints.length > 0 && (
+      {exactPoints.length > 0 && (
         <>
-          <div className="max-w-lg mx-auto mb-8">
-            <Line data={solutionChartData} />
+          <h3 className="text-xl font-semibold mb-2">Gráficas de Soluciones</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+            <div className="border p-4 rounded shadow">
+              <h4 className="font-semibold mb-2">Solución Exacta (API)</h4>
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={exactPoints}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="x" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Line type="monotone" dataKey="y" stroke="red" strokeDasharray="5 5" />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="border p-4 rounded shadow">
+              <h4 className="font-semibold mb-2">Euler</h4>
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={ptsEuler}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="x" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Line type="monotone" dataKey="y" stroke="blue" />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="border p-4 rounded shadow">
+              <h4 className="font-semibold mb-2">Euler Mejorado</h4>
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={ptsImproved}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="x" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Line type="monotone" dataKey="y" stroke="green" />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="border p-4 rounded shadow">
+              <h4 className="font-semibold mb-2">Runge-Kutta</h4>
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={ptsRK}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="x" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Line type="monotone" dataKey="y" stroke="orange" />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
           </div>
-          <div className="max-w-lg mx-auto mb-8">
-            <Line data={errorChartData} />
-          </div>
-          <h3 className="text-xl font-semibold mb-2 text-center">Resultados</h3>
+          <h3 className="text-xl font-semibold mb-2 text-center">Tabla de Errores (%)</h3>
           <div className="overflow-x-auto">
             <table className="min-w-full border-collapse border border-gray-300">
               <thead>
                 <tr className="bg-gray-200">
                   <th className="border px-4 py-2">x</th>
-                  <th className="border px-4 py-2">y_exact</th>
-                  <th className="border px-4 py-2">y_aprox (Euler)</th>
-                  <th className="border px-4 py-2">Error (%)</th>
+                  <th className="border px-4 py-2">Error Euler</th>
+                  <th className="border px-4 py-2">Error Euler Mejorado</th>
+                  <th className="border px-4 py-2">Error Runge-Kutta</th>
                 </tr>
               </thead>
               <tbody>
-                {exactPoints.map((p, index) => (
-                  <tr key={index} className="text-center">
-                    <td className="border px-4 py-2">{p.x.toFixed(2)}</td>
-                    <td className="border px-4 py-2">{p.y.toFixed(6)}</td>
-                    <td className="border px-4 py-2">{eulerPoints[index] ? eulerPoints[index].y.toFixed(6) : '-'}</td>
-                    <td className="border px-4 py-2">{error_vals[index].toFixed(2)}</td>
-                  </tr>
-                ))}
+                {exactPoints.map((p, idx) => {
+                  const errEuler = ptsEuler[idx] ? errorCalc(ptsEuler[idx].y, p.y) : 0;
+                  const errImproved = ptsImproved[idx] ? errorCalc(ptsImproved[idx].y, p.y) : 0;
+                  const errRK = ptsRK[idx] ? errorCalc(ptsRK[idx].y, p.y) : 0;
+                  return (
+                    <tr key={idx} className="text-center">
+                      <td className="border px-4 py-2">{p.x.toFixed(2)}</td>
+                      <td className="border px-4 py-2">{errEuler.toFixed(2)}</td>
+                      <td className="border px-4 py-2">{errImproved.toFixed(2)}</td>
+                      <td className="border px-4 py-2">{errRK.toFixed(2)}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -223,4 +263,4 @@ const Euler: React.FC = () => {
   );
 };
 
-export default Euler;
+export default EcuacionSolverMethods;
