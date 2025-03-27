@@ -96,7 +96,7 @@ const EcuacionSolverMethods: React.FC = () => {
 </div>
 
           {/* Gráficas Individuales */}
-          <div className="grid md:grid-cols-3 gap-4">
+          <div className="grid md:grid-cols-1 gap-4">
             {Object.entries(response.methods).map(([method, data]) => (
               <div key={method} className="bg-white p-4 rounded-lg shadow">
                 <h3 className="text-lg font-semibold mb-4 capitalize">{method}</h3>
