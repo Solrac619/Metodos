@@ -1,263 +1,168 @@
-// src/components/EcuacionSolverMethods.tsx
+import React, { useState } from 'react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import katex from 'katex';
 
-import React, { useState } from "react";
-import axios from "axios";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from "recharts";
-import {
-  eulerMethod,
-  improvedEulerMethod,
-  rungeKuttaMethod,
-  Point,
-} from "../utils/mathUtils";
+interface SolutionData {
+  x: number[];
+  y: number[];
+}
 
-// Parámetros fijos (estos deben coincidir con los usados en el backend)
-const x0 = 0;
-const y0 = 1;
-const xEnd = 5;
-const h = 0.1;
-
-// Para la ecuación "y' - y = 0" se deduce que y' = y, es decir, f(t,y)= y.
-const f = (t: number, y: number): number => y;
-
-const errorCalc = (approx: number, exact: number): number =>
-  exact !== 0 ? (Math.abs(approx - exact) / exact) * 100 : 0;
+interface ApiResponse {
+  solution: string;
+  exact: SolutionData;
+  methods: {
+    euler: SolutionData;
+    improved: SolutionData;
+    rk: SolutionData;
+  };
+  errors: {
+    euler: SolutionData;
+    improved: SolutionData;
+    rk: SolutionData;
+  };
+}
 
 const EcuacionSolverMethods: React.FC = () => {
-  // El usuario solo ingresa la ecuación
-  const [equation, setEquation] = useState<string>("y' - y = 0");
-  const [solution, setSolution] = useState<string>("");
-  const [methodUsed, setMethodUsed] = useState<string>("");
-  const [apiError, setApiError] = useState<string>("");
-  const [exactPoints, setExactPoints] = useState<Point[]>([]);
+  const [equation, setEquation] = useState("y' = y");
+  const [response, setResponse] = useState<ApiResponse | null>(null);
+  const [error, setError] = useState('');
 
-  // Estados para las aproximaciones locales (calculadas con mathUtils)
-  const [ptsEuler, setPtsEuler] = useState<Point[]>([]);
-  const [ptsImproved, setPtsImproved] = useState<Point[]>([]);
-  const [ptsRK, setPtsRK] = useState<Point[]>([]);
-
-  // Al hacer clic, se envía la ecuación al backend. El backend usa los parámetros por defecto.
   const handleSolve = async () => {
-    setApiError("");
     try {
-      const response = await axios.post("http://127.0.0.1:5000/solve-ode", {
-        equation,
+      const res = await fetch('http://localhost:5000/solve-ode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          equation: equation,
+          conditions: { y0: 1 },
+          x0: 0,
+          xEnd: 5,
+          h: 0.1
+        }),
       });
-      const data = response.data;
-      setSolution(data.solution);
-      setMethodUsed(data.method);
-      // Se espera que data.points tenga la forma { x: [...], y: [...] }
-      const pts: Point[] = data.points && data.points.x
-        ? data.points.x.map((x: number, idx: number) => ({
-            x,
-            y: data.points.y[idx],
-          }))
-        : [];
-      setExactPoints(pts);
-    } catch (err: any) {
-      setApiError(err.response?.data?.error || "Error desconocido");
-      setSolution("");
-      setExactPoints([]);
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Error desconocido');
+      }
+
+      const data: ApiResponse = await res.json();
+      setResponse(data);
+      setError('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error desconocido');
+      setResponse(null);
     }
-    // Calcular las aproximaciones locales con mathUtils usando la función f y parámetros fijos
-    setPtsEuler(eulerMethod(f, x0, y0, xEnd, h));
-    setPtsImproved(improvedEulerMethod(f, x0, y0, xEnd, h));
-    setPtsRK(rungeKuttaMethod(f, x0, y0, xEnd, h));
-  };
-
-  // Preparar datos para las gráficas
-  const x_vals = exactPoints.map((p) => p.x);
-  const exact_y_vals = exactPoints.map((p) => p.y);
-  const euler_y_vals = ptsEuler.map((p) => p.y);
-  const improved_y_vals = ptsImproved.map((p) => p.y);
-  const rk_y_vals = ptsRK.map((p) => p.y);
-
-  // Calcular errores porcentuales para cada método (basados en la solución exacta)
-  const errorEuler = exactPoints.map((p, idx) =>
-    errorCalc(ptsEuler[idx]?.y || 0, p.y)
-  );
-  const errorImproved = exactPoints.map((p, idx) =>
-    errorCalc(ptsImproved[idx]?.y || 0, p.y)
-  );
-  const errorRK = exactPoints.map((p, idx) =>
-    errorCalc(ptsRK[idx]?.y || 0, p.y)
-  );
-
-  // Datos para la gráfica de la solución exacta (devuelta por la API)
-  const exactChartData = {
-    labels: x_vals.map((x) => x.toFixed(2)),
-    datasets: [
-      {
-        label: "Solución Exacta (API)",
-        data: exact_y_vals,
-        fill: false,
-        borderColor: "red",
-        borderDash: [5, 5],
-      },
-    ],
-  };
-
-  // Datos para las gráficas de aproximaciones
-  const eulerChartData = {
-    labels: ptsEuler.map((p) => p.x.toFixed(2)),
-    datasets: [
-      {
-        label: "Euler",
-        data: euler_y_vals,
-        fill: false,
-        borderColor: "blue",
-      },
-    ],
-  };
-
-  const improvedChartData = {
-    labels: ptsImproved.map((p) => p.x.toFixed(2)),
-    datasets: [
-      {
-        label: "Euler Mejorado",
-        data: improved_y_vals,
-        fill: false,
-        borderColor: "green",
-      },
-    ],
-  };
-
-  const rkChartData = {
-    labels: ptsRK.map((p) => p.x.toFixed(2)),
-    datasets: [
-      {
-        label: "Runge-Kutta",
-        data: rk_y_vals,
-        fill: false,
-        borderColor: "orange",
-      },
-    ],
   };
 
   return (
-    <div className="p-4">
-      <h2 className="text-2xl font-bold mb-4 text-center">
-        Solver de Ecuaciones Diferenciales
-      </h2>
-      <div className="mb-4 flex justify-center">
+    <div className="p-4 max-w-7xl mx-auto">
+      <h1 className="text-3xl font-bold mb-6 text-center">Solver de Ecuaciones Diferenciales</h1>
+      
+      {/* Formulario */}
+      <div className="flex flex-col md:flex-row gap-4 mb-8">
         <input
           type="text"
           value={equation}
           onChange={(e) => setEquation(e.target.value)}
-          placeholder="Ingresa la ecuación (ej: y' - y = 0)"
-          className="border p-2 w-full max-w-md mb-4"
+          placeholder="Ej: y' = y + t"
+          className="flex-grow p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         <button
           onClick={handleSolve}
-          className="ml-4 bg-yellow-500 hover:bg-yellow-700 text-white font-semibold py-2 px-4 rounded"
+          className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
         >
-          Calcular
+          Resolver
         </button>
       </div>
-      {apiError && <p className="text-red-500 mb-4">{apiError}</p>}
-      {solution && (
-        <div className="mb-4">
-          <h3 className="font-semibold">Solución Exacta (API):</h3>
-          <pre className="bg-gray-100 p-4 rounded whitespace-pre-wrap">
-            {solution}
-          </pre>
-          <p>Método utilizado: {methodUsed}</p>
-        </div>
-      )}
-      {exactPoints.length > 0 && (
-        <>
-          <h3 className="text-xl font-semibold mb-2">Gráficas de Soluciones</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-            <div className="border p-4 rounded shadow">
-              <h4 className="font-semibold mb-2">Solución Exacta (API)</h4>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={exactPoints}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="x" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Line type="monotone" dataKey="y" stroke="red" strokeDasharray="5 5" />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="border p-4 rounded shadow">
-              <h4 className="font-semibold mb-2">Euler</h4>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={ptsEuler}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="x" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Line type="monotone" dataKey="y" stroke="blue" />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="border p-4 rounded shadow">
-              <h4 className="font-semibold mb-2">Euler Mejorado</h4>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={ptsImproved}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="x" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Line type="monotone" dataKey="y" stroke="green" />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="border p-4 rounded shadow">
-              <h4 className="font-semibold mb-2">Runge-Kutta</h4>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={ptsRK}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="x" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Line type="monotone" dataKey="y" stroke="orange" />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+
+      {/* Mensaje de error */}
+      {error && <div className="bg-red-100 p-4 rounded-lg text-red-700 mb-6">{error}</div>}
+
+      {/* Resultados */}
+      {response && (
+        <div className="space-y-8">
+          {/* Solución Exacta */}
+          <div className="bg-gray-50 p-4 rounded-lg overflow-x-auto">
+  <h2 className="text-xl font-semibold mb-4">Solución Exacta</h2>
+  <div 
+    dangerouslySetInnerHTML={{
+      __html: katex.renderToString(response.solution, {
+        throwOnError: false,
+        displayMode: true
+      })
+    }}
+  />
+</div>
+
+          {/* Gráficas Individuales */}
+          <div className="grid md:grid-cols-3 gap-4">
+            {Object.entries(response.methods).map(([method, data]) => (
+              <div key={method} className="bg-white p-4 rounded-lg shadow">
+                <h3 className="text-lg font-semibold mb-4 capitalize">{method}</h3>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={data.x.map((x, i) => ({
+                      x: x,
+                      Exacta: response.exact.y[i],
+                      [method]: data.y[i]
+                    }))}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="x" />
+                      <YAxis />
+                      <Tooltip />
+                      <Legend />
+                      <Line
+                        type="monotone"
+                        dataKey="Exacta"
+                        stroke="#ef4444"
+                        dot={false}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey={method}
+                        stroke="#3b82f6"
+                        dot={false}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            ))}
           </div>
-          <h3 className="text-xl font-semibold mb-2 text-center">Tabla de Errores (%)</h3>
-          <div className="overflow-x-auto">
-            <table className="min-w-full border-collapse border border-gray-300">
-              <thead>
-                <tr className="bg-gray-200">
-                  <th className="border px-4 py-2">x</th>
-                  <th className="border px-4 py-2">Error Euler</th>
-                  <th className="border px-4 py-2">Error Euler Mejorado</th>
-                  <th className="border px-4 py-2">Error Runge-Kutta</th>
-                </tr>
-              </thead>
-              <tbody>
-                {exactPoints.map((p, idx) => {
-                  const errEuler = ptsEuler[idx] ? errorCalc(ptsEuler[idx].y, p.y) : 0;
-                  const errImproved = ptsImproved[idx] ? errorCalc(ptsImproved[idx].y, p.y) : 0;
-                  const errRK = ptsRK[idx] ? errorCalc(ptsRK[idx].y, p.y) : 0;
-                  return (
-                    <tr key={idx} className="text-center">
-                      <td className="border px-4 py-2">{p.x.toFixed(2)}</td>
-                      <td className="border px-4 py-2">{errEuler.toFixed(2)}</td>
-                      <td className="border px-4 py-2">{errImproved.toFixed(2)}</td>
-                      <td className="border px-4 py-2">{errRK.toFixed(2)}</td>
+           {/* Tabla de Errores */}
+           <div className="bg-white shadow rounded-lg p-4">
+            <h2 className="text-xl font-semibold mb-4">Errores Porcentuales</h2>
+            <div className="overflow-x-auto">
+              <table className="min-w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-2 text-left">x</th>
+                    <th className="px-4 py-2 text-center">Euler (%)</th>
+                    <th className="px-4 py-2 text-center">Euler Mejorado (%)</th>
+                    <th className="px-4 py-2 text-center">Runge-Kutta (%)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {response.exact.x.map((x, index) => (
+                    <tr key={x} className="border-t hover:bg-gray-50">
+                      <td className="px-4 py-2">{x.toFixed(2)}</td>
+                      <td className="px-4 py-2 text-center">
+                        {response.errors.euler.y[index].toFixed(2)}
+                      </td>
+                      <td className="px-4 py-2 text-center">
+                        {response.errors.improved.y[index].toFixed(2)}
+                      </td>
+                      <td className="px-4 py-2 text-center">
+                        {response.errors.rk.y[index].toFixed(2)}
+                      </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   );
